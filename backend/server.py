@@ -70,6 +70,9 @@ def extract_video_audio(video_id):
                 }
             }
         }
+        cookie_file = os.path.join(BASE_DIR, 'cookies.txt')
+        if os.path.exists(cookie_file):
+            ydl_opts['cookiefile'] = cookie_file
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -103,6 +106,34 @@ def extract_video_audio(video_id):
         except Exception as e:
             last_err = e
             continue
+
+    # If datacenter bot check blocked local extraction on Render, fall back to our residential edge tunnel
+    tunnel_url = os.environ.get('TUNNEL_BACKEND_URL', 'https://enforcement-salary-chubby-consumption.trycloudflare.com')
+    try:
+        host = request.host if request else ''
+    except Exception:
+        host = ''
+    if tunnel_url and 'trycloudflare.com' not in host:
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{tunnel_url}/api/info?id={video_id}", headers={'User-Agent': 'KaraokeFlow-Cluster'})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                remote_data = json.loads(resp.read().decode('utf-8'))
+                if remote_data.get('id'):
+                    data = {
+                        'id': video_id,
+                        'title': remote_data.get('title', 'Unknown Title'),
+                        'channel': remote_data.get('channel', 'Unknown Artist'),
+                        'thumbnail': remote_data.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"),
+                        'duration': remote_data.get('duration', 0),
+                        'duration_str': remote_data.get('duration_str', '0:00'),
+                        'audio_url': f"{tunnel_url}/api/audio-proxy?id={video_id}",
+                        'timestamp': now
+                    }
+                    STREAM_CACHE[video_id] = data
+                    return data
+        except Exception as te:
+            print(f"Tunnel edge fallback error: {te}")
 
     if last_err:
         raise last_err

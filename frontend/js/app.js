@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const candidates = isNativeApp ? [
             'http://192.168.0.105:5000',        // Wi-Fi LAN active IP
             'http://127.0.0.1:5000',            // USB ADB Reverse proxy
+            'https://enforcement-salary-chubby-consumption.trycloudflare.com', // High-speed residential Cloudflare tunnel
             localStorage.getItem('karaokeflow_server_url'),
             'https://karaoke.alsuza.com',       // Custom domain on Cloudflare
             'https://karaokeflow.onrender.com', // Live Render 24/7 cloud server
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ].filter(Boolean) : [
             'https://karaoke.alsuza.com',       // Custom domain on Cloudflare
             'https://karaokeflow.onrender.com', // Live Render 24/7 cloud server
+            'https://enforcement-salary-chubby-consumption.trycloudflare.com', // High-speed residential Cloudflare tunnel
             'http://192.168.0.105:5000',        // Wi-Fi LAN active IP
             'http://127.0.0.1:5000',            // USB ADB Reverse proxy
             localStorage.getItem('karaokeflow_server_url'),
@@ -584,6 +586,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // If primary server failed, seamlessly check other available servers
         if (!fullStreamUrl) {
             const fallbacks = [
+                'https://enforcement-salary-chubby-consumption.trycloudflare.com',
                 'http://192.168.0.105:5000',
                 'http://127.0.0.1:5000',
                 'https://karaokeflow.onrender.com',
