@@ -65,7 +65,8 @@ def extract_video_audio(video_id):
             'skip_download': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': clients
+                    'player_client': clients,
+                    'player_skip': ['webpage', 'configs']
                 }
             }
         }
