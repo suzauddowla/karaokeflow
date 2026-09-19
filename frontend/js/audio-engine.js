@@ -242,33 +242,33 @@ class AudioEngine {
                 return;
             case 'ktv':
                 this.reverbDecay = 1.4;
-                this.setReverbMix(0.35);
+                this.setReverbMix(0.38);
                 break;
             case 'hall':
-                this.reverbDecay = 2.8;
+                this.reverbDecay = 2.6;
                 this.setReverbMix(0.50);
                 break;
             case 'stage':
-                this.reverbDecay = 2.0;
-                this.setReverbMix(0.40);
+                this.reverbDecay = 1.9;
+                this.setReverbMix(0.42);
                 break;
             case 'arena':
-                this.reverbDecay = 4.5;
+                this.reverbDecay = 4.2;
                 this.setReverbMix(0.60);
                 break;
             default:
-                this.reverbDecay = 1.5;
-                this.setReverbMix(0.35);
+                this.reverbDecay = 1.4;
+                this.setReverbMix(0.38);
         }
         this.updateReverbImpulse(this.reverbDecay);
     }
 
     setReverbMix(wetLevel) {
         this.reverbWet = Math.max(0, Math.min(1, wetLevel));
-        if (this.reverbDryGain && this.reverbWetGain) {
-            // Equal-power crossfade
+        if (this.reverbDryGain && this.reverbWetGain && this.ctx) {
+            // Equal-power crossfade with smooth transition
             const dry = Math.cos(this.reverbWet * 0.5 * Math.PI);
-            const wet = Math.sin(this.reverbWet * 0.5 * Math.PI);
+            const wet = Math.sin(this.reverbWet * 0.5 * Math.PI) * 0.85;
             this.reverbDryGain.gain.setTargetAtTime(dry, this.ctx.currentTime, 0.03);
             this.reverbWetGain.gain.setTargetAtTime(wet, this.ctx.currentTime, 0.03);
         }
@@ -282,30 +282,69 @@ class AudioEngine {
     updateReverbImpulse(decayDuration) {
         if (!this.ctx) return;
         const rate = this.ctx.sampleRate;
-        const length = Math.floor(rate * decayDuration);
+        const length = Math.max(1024, Math.floor(rate * decayDuration));
         const impulse = this.ctx.createBuffer(2, length, rate);
         const left = impulse.getChannelData(0);
         const right = impulse.getChannelData(1);
 
-        // Generate synthetic stereo exponential decay with high-frequency absorption
-        for (let i = 0; i < length; i++) {
-            const progress = i / length;
-            // Exponential energy decay
-            const decay = Math.exp(-progress * 6.0);
-            
-            // Random reflections with stereo decorrelation
-            const noiseL = (Math.random() * 2 - 1) * decay;
-            const noiseR = (Math.random() * 2 - 1) * decay;
+        // 1. Acoustic parameters
+        const preDelaySec = Math.min(0.025, decayDuration * 0.015);
+        const preDelaySamples = Math.floor(rate * preDelaySec);
+        
+        // Early reflection taps: [delaySec, gainL, gainR]
+        const earlyTaps = [
+            [0.015, 0.45, 0.25],
+            [0.028, 0.20, 0.40],
+            [0.042, 0.35, 0.30],
+            [0.059, 0.22, 0.18],
+            [0.076, 0.15, 0.24],
+            [0.095, 0.12, 0.10]
+        ];
 
-            // Lowpass smoothing for warm room acoustics
-            if (i === 0) {
-                left[i] = noiseL;
-                right[i] = noiseR;
-            } else {
-                left[i] = left[i - 1] * 0.2 + noiseL * 0.8;
-                right[i] = right[i - 1] * 0.2 + noiseR * 0.8;
+        for (const [tapSec, gainL, gainR] of earlyTaps) {
+            const tapIdx = Math.floor(rate * tapSec);
+            if (tapIdx < length) {
+                left[tapIdx] += gainL;
+                right[tapIdx] += gainR;
             }
         }
+
+        // 2. Late diffuse reverberation with air absorption (lowpass roll-off)
+        let prevL = 0;
+        let prevR = 0;
+        const decayRate = 5.0 / decayDuration;
+
+        for (let i = preDelaySamples; i < length; i++) {
+            const t = (i - preDelaySamples) / rate;
+            const env = Math.exp(-decayRate * t);
+
+            // High frequency absorption: damp factor increases over time
+            const damp = Math.min(0.85, 0.25 + 0.4 * (i / length));
+
+            const noiseL = (Math.random() * 2 - 1) * env;
+            const noiseR = (Math.random() * 2 - 1) * env;
+
+            prevL = prevL * damp + noiseL * (1 - damp);
+            prevR = prevR * damp + noiseR * (1 - damp);
+
+            left[i] += prevL;
+            right[i] += prevR;
+        }
+
+        // 3. RMS normalization to guarantee consistent studio volume
+        let sumSq = 0;
+        for (let i = 0; i < length; i++) {
+            sumSq += left[i] * left[i] + right[i] * right[i];
+        }
+        const rms = Math.sqrt(sumSq / (length * 2)) || 1.0;
+        const targetRms = 0.22;
+        const normFactor = targetRms / rms;
+
+        for (let i = 0; i < length; i++) {
+            left[i] = Math.max(-1.0, Math.min(1.0, left[i] * normFactor));
+            right[i] = Math.max(-1.0, Math.min(1.0, right[i] * normFactor));
+        }
+
         this.reverbConvolver.buffer = impulse;
     }
 
@@ -435,16 +474,21 @@ class WebAudioPitchShifter {
         this.bypassGain.gain.value = 1.0;
         this.effectGain.gain.value = 0.0;
 
-        // Grain buffer size (~50-80ms for optimal vocal/music pitch balance)
+        // Grain duration: 65ms (optimal vocal/music pitch balance)
         this.grainDuration = 0.065;
-        this.bufferLength = Math.floor(ctx.sampleRate * this.grainDuration);
+        this.baseDelay = 0.025; // 25ms base delay prevents negative delay clamping
 
         // Dual delay lines for overlapping crossfade
         this.delayA = ctx.createDelay(1.0);
         this.delayB = ctx.createDelay(1.0);
+        this.delayA.delayTime.value = this.baseDelay;
+        this.delayB.delayTime.value = this.baseDelay;
 
+        // CRITICAL: Gain nodes must start with gain = 0 so Hann window (0 to 1) provides the exact gain without DC offset
         this.gainA = ctx.createGain();
         this.gainB = ctx.createGain();
+        this.gainA.gain.value = 0.0;
+        this.gainB.gain.value = 0.0;
 
         // Create modulation curves
         this.setupModulation();
@@ -466,17 +510,17 @@ class WebAudioPitchShifter {
 
     setupModulation() {
         const rate = this.ctx.sampleRate;
-        const length = this.bufferLength;
+        const length = rate; // 1 second normalized buffer
         const modBuffer = this.ctx.createBuffer(2, length, rate);
         const lfoDataA = modBuffer.getChannelData(0);
         const lfoDataB = modBuffer.getChannelData(1);
 
-        // Sawtooth delay modulation & Triangle window crossfade
+        // Cyclic normalized phase [0, 1)
         for (let i = 0; i < length; i++) {
             const phaseA = i / length;
             const phaseB = (phaseA + 0.5) % 1.0;
-            lfoDataA[i] = phaseA * this.grainDuration;
-            lfoDataB[i] = phaseB * this.grainDuration;
+            lfoDataA[i] = phaseA;
+            lfoDataB[i] = phaseB;
         }
 
         // LFO Players
@@ -484,14 +528,13 @@ class WebAudioPitchShifter {
         this.lfoSource.buffer = modBuffer;
         this.lfoSource.loop = true;
 
-        this.lfoRateNode = this.ctx.createGain();
-        this.lfoRateNode.gain.value = 0.0; // Dynamic modulation rate
-
         this.lfoSplitter = this.ctx.createChannelSplitter(2);
         this.lfoSource.connect(this.lfoSplitter);
 
         this.lfoModA = this.ctx.createGain();
         this.lfoModB = this.ctx.createGain();
+        this.lfoModA.gain.value = 0.0;
+        this.lfoModB.gain.value = 0.0;
 
         this.lfoSplitter.connect(this.lfoModA, 0);
         this.lfoSplitter.connect(this.lfoModB, 1);
@@ -499,7 +542,8 @@ class WebAudioPitchShifter {
         this.lfoModA.connect(this.delayA.delayTime);
         this.lfoModB.connect(this.delayB.delayTime);
 
-        // Window gains: Triangle crossfade
+        // Hann windows: sin^2(pi * phi) for A, cos^2(pi * phi) for B
+        // sin^2 + cos^2 = 1.0 constant sum -> NO Tremolo, NO Clicks!
         const winBuffer = this.ctx.createBuffer(2, length, rate);
         const winDataA = winBuffer.getChannelData(0);
         const winDataB = winBuffer.getChannelData(1);
@@ -507,9 +551,8 @@ class WebAudioPitchShifter {
         for (let i = 0; i < length; i++) {
             const pA = i / length;
             const pB = (pA + 0.5) % 1.0;
-            // Hann or triangle window
-            winDataA[i] = Math.sin(pA * Math.PI);
-            winDataB[i] = Math.sin(pB * Math.PI);
+            winDataA[i] = Math.pow(Math.sin(pA * Math.PI), 2);
+            winDataB[i] = Math.pow(Math.sin(pB * Math.PI), 2);
         }
 
         this.winSource = this.ctx.createBufferSource();
@@ -530,7 +573,7 @@ class WebAudioPitchShifter {
         const now = this.ctx.currentTime;
 
         if (semitones === 0) {
-            // Pure bypass when pitch is 0
+            // Pure bit-perfect bypass when pitch is 0
             this.bypassGain.gain.setTargetAtTime(1.0, now, 0.02);
             this.effectGain.gain.setTargetAtTime(0.0, now, 0.02);
             return;
@@ -540,18 +583,24 @@ class WebAudioPitchShifter {
         this.bypassGain.gain.setTargetAtTime(0.0, now, 0.02);
         this.effectGain.gain.setTargetAtTime(1.0, now, 0.02);
 
-        // Pitch ratio: 2^(semitones / 12)
+        // Exact Doppler frequency ratio: R = 2^(semitones / 12)
         const ratio = Math.pow(2, semitones / 12);
-        // Delay slope: (1 - ratio)
-        const slope = 1.0 - ratio;
+        const delta = 1.0 - ratio;
+        const f_mod = Math.max(0.1, Math.abs(delta) / this.grainDuration);
 
-        this.lfoModA.gain.setTargetAtTime(slope, now, 0.03);
-        this.lfoModB.gain.setTargetAtTime(slope, now, 0.03);
+        // Pitch up vs Pitch down delay calibration
+        const isPitchUp = semitones > 0;
+        const targetBaseDelay = isPitchUp ? (this.baseDelay + this.grainDuration) : this.baseDelay;
+        const targetModGain = isPitchUp ? -this.grainDuration : this.grainDuration;
 
-        // Speed of grain cycle depends on pitch shift to prevent clicking
-        const playSpeed = Math.abs(slope) > 0.01 ? Math.abs(slope) : 1.0;
-        this.lfoSource.playbackRate.setTargetAtTime(playSpeed, now, 0.03);
-        this.winSource.playbackRate.setTargetAtTime(playSpeed, now, 0.03);
+        this.delayA.delayTime.setTargetAtTime(targetBaseDelay, now, 0.02);
+        this.delayB.delayTime.setTargetAtTime(targetBaseDelay, now, 0.02);
+
+        this.lfoModA.gain.setTargetAtTime(targetModGain, now, 0.02);
+        this.lfoModB.gain.setTargetAtTime(targetModGain, now, 0.02);
+
+        this.lfoSource.playbackRate.setTargetAtTime(f_mod, now, 0.02);
+        this.winSource.playbackRate.setTargetAtTime(f_mod, now, 0.02);
     }
 }
 

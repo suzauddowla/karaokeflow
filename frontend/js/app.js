@@ -10,9 +10,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     ytSync.init();
 
     // Determine Backend Server Base URL
-    // When running inside Android APK (Capacitor), default to local USB reverse (127.0.0.1:5000) or saved server
+    // When running inside Android APK (Capacitor), prioritize local network/USB server for instant zero-latency DSP
     const isNativeApp = window.Capacitor !== undefined || window.location.protocol === 'capacitor:' || (window.location.hostname === 'localhost' && window.location.port !== '5000');
-    let API_BASE = localStorage.getItem('karaokeflow_server_url') || (isNativeApp ? 'http://127.0.0.1:5000' : window.location.origin);
+    let API_BASE = localStorage.getItem('karaokeflow_server_url') || (isNativeApp ? 'http://192.168.0.105:5000' : window.location.origin);
     API_BASE = API_BASE.replace(/\/+$/, '');
 
     async function pingServer(url) {
@@ -33,12 +33,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (currentWorks) return API_BASE;
         }
 
-        const candidates = [
-            'http://127.0.0.1:5000',     // USB ADB Reverse proxy (fastest & offline-ready)
-            'http://192.168.0.105:5000', // Wi-Fi LAN active IP
-            'http://192.168.0.104:5000', // Wi-Fi LAN fallback IP
-            'http://localhost:5000',
+        // Prioritize local network for native app, cloud for web browsers
+        const candidates = isNativeApp ? [
+            'http://192.168.0.105:5000',        // Wi-Fi LAN active IP
+            'http://127.0.0.1:5000',            // USB ADB Reverse proxy
             localStorage.getItem('karaokeflow_server_url'),
+            'https://karaoke.alsuza.com',       // Custom domain on Cloudflare
+            'https://karaokeflow.onrender.com', // Live Render 24/7 cloud server
+            'http://localhost:5000',
+            window.location.origin
+        ].filter(Boolean) : [
+            'https://karaoke.alsuza.com',       // Custom domain on Cloudflare
+            'https://karaokeflow.onrender.com', // Live Render 24/7 cloud server
+            'http://192.168.0.105:5000',        // Wi-Fi LAN active IP
+            'http://127.0.0.1:5000',            // USB ADB Reverse proxy
+            localStorage.getItem('karaokeflow_server_url'),
+            'http://localhost:5000',
             window.location.origin
         ].filter(Boolean);
 
@@ -557,24 +567,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast(`Loading: ${song.title}...`, "info");
 
         // 3. Fetch stream proxy URL for real-time DSP
+        let fullStreamUrl = null;
+
         try {
             const resp = await fetch(`${API_BASE}/api/info?id=${song.id}`);
-            const data = await resp.json();
-
-            if (data.stream_proxy) {
-                // Ensure full URL for APK
-                const fullStreamUrl = data.stream_proxy.startsWith('http') ? data.stream_proxy : `${API_BASE}${data.stream_proxy}`;
-                ytSync.setAudioSource(fullStreamUrl);
-                await ytSync.play();
-                showToast(`Now Playing: ${song.title}`, "success");
-            } else {
-                showToast("Audio stream unavailable. Switched to Direct YouTube Audio.", "warning");
-                ytSync.setSoundMode('direct');
-                if (audioSourceSelect) audioSourceSelect.value = 'direct';
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.stream_proxy) {
+                    fullStreamUrl = data.stream_proxy.startsWith('http') ? data.stream_proxy : `${API_BASE}${data.stream_proxy}`;
+                }
             }
         } catch (err) {
-            console.error("Load song error:", err);
-            showToast("Audio network issue. Falling back to Direct YouTube Audio.", "warning");
+            console.warn("Primary server info fetch failed, trying fallbacks...");
+        }
+
+        // If primary server failed, seamlessly check other available servers
+        if (!fullStreamUrl) {
+            const fallbacks = [
+                'http://192.168.0.105:5000',
+                'http://127.0.0.1:5000',
+                'https://karaokeflow.onrender.com',
+                'https://karaoke.alsuza.com'
+            ].filter(u => u !== API_BASE);
+
+            for (const candidate of fallbacks) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
+                    const resp = await fetch(`${candidate}/api/info?id=${song.id}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.stream_proxy) {
+                            API_BASE = candidate;
+                            localStorage.setItem('karaokeflow_server_url', candidate);
+                            const input = document.getElementById('server-url-input');
+                            if (input) input.value = candidate;
+                            fullStreamUrl = data.stream_proxy.startsWith('http') ? data.stream_proxy : `${candidate}${data.stream_proxy}`;
+                            break;
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        if (fullStreamUrl) {
+            ytSync.setAudioSource(fullStreamUrl);
+            await ytSync.play();
+            showToast(`Now Playing: ${song.title}`, "success");
+        } else {
+            showToast("Audio stream unavailable. Switched to Direct YouTube Audio.", "warning");
             ytSync.setSoundMode('direct');
             if (audioSourceSelect) audioSourceSelect.value = 'direct';
         }
