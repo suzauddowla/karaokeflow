@@ -50,42 +50,62 @@ def extract_video_audio(video_id):
             return cached
 
     url = f"https://www.youtube.com/watch?v={video_id}"
-    ydl_opts = {
-        'format': 'bestaudio/best[ext=mp4]/18/best',
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'tv_embedded']
+    strategies = [
+        ['android'],
+        ['android', 'ios'],
+        ['ios', 'android']
+    ]
+
+    last_err = None
+    for clients in strategies:
+        ydl_opts = {
+            'format': 'bestaudio/best[ext=mp4]/18/best',
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': clients
+                }
             }
         }
-    }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                audio_url = info.get('url')
+                if not audio_url and 'formats' in info:
+                    for f in reversed(info['formats']):
+                        if f.get('acodec') != 'none' and f.get('vcodec') == 'none':
+                            audio_url = f.get('url')
+                            break
+                    if not audio_url:
+                        for f in reversed(info['formats']):
+                            if f.get('acodec') != 'none' and f.get('url'):
+                                audio_url = f.get('url')
+                                break
+                    if not audio_url and len(info['formats']) > 0:
+                        audio_url = info['formats'][-1].get('url')
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        audio_url = info.get('url')
-        if not audio_url and 'formats' in info:
-            # Fallback search in formats
-            for f in reversed(info['formats']):
-                if f.get('acodec') != 'none' and f.get('vcodec') == 'none':
-                    audio_url = f.get('url')
-                    break
-            if not audio_url and len(info['formats']) > 0:
-                audio_url = info['formats'][-1].get('url')
+                if audio_url:
+                    data = {
+                        'id': video_id,
+                        'title': info.get('title', 'Unknown Title'),
+                        'channel': info.get('uploader', info.get('channel', 'Unknown Artist')),
+                        'thumbnail': info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"),
+                        'duration': info.get('duration', 0),
+                        'duration_str': format_duration(info.get('duration', 0)),
+                        'audio_url': audio_url,
+                        'timestamp': now
+                    }
+                    STREAM_CACHE[video_id] = data
+                    return data
+        except Exception as e:
+            last_err = e
+            continue
 
-        data = {
-            'id': video_id,
-            'title': info.get('title', 'Unknown Title'),
-            'channel': info.get('uploader', info.get('channel', 'Unknown Artist')),
-            'thumbnail': info.get('thumbnail', f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"),
-            'duration': info.get('duration', 0),
-            'duration_str': format_duration(info.get('duration', 0)),
-            'audio_url': audio_url,
-            'timestamp': now
-        }
-        STREAM_CACHE[video_id] = data
-        return data
+    if last_err:
+        raise last_err
+    raise Exception(f"Could not extract audio for video {video_id}")
 
 @app.route('/api/search')
 def search():
