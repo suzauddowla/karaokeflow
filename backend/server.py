@@ -41,6 +41,17 @@ def format_duration(seconds):
         return f"{h}:{m:02d}:{s:02d}"
     return f"{m}:{s:02d}"
 
+# Write cookies.txt from environment variable if provided
+cookies_env = os.environ.get('YOUTUBE_COOKIES')
+if cookies_env:
+    try:
+        cookie_path = os.path.join(BASE_DIR, 'cookies.txt')
+        with open(cookie_path, 'w', encoding='utf-8') as f:
+            f.write(cookies_env)
+        print("Initialized cookies.txt from YOUTUBE_COOKIES environment variable.")
+    except Exception as e:
+        print(f"Warning: could not write cookies from env: {e}")
+
 def extract_video_audio(video_id):
     """Extract direct audio URL and metadata using yt-dlp."""
     now = time.time()
@@ -50,7 +61,15 @@ def extract_video_audio(video_id):
             return cached
 
     url = f"https://www.youtube.com/watch?v={video_id}"
+    cookie_file = os.path.join(BASE_DIR, 'cookies.txt')
+    has_cookies = os.path.exists(cookie_file)
+
     strategies = [
+        ['web'],
+        ['tv_embedded'],
+        ['android'],
+        ['android', 'ios']
+    ] if has_cookies else [
         ['android'],
         ['android', 'ios'],
         ['ios', 'android']
@@ -66,12 +85,11 @@ def extract_video_audio(video_id):
             'extractor_args': {
                 'youtube': {
                     'player_client': clients,
-                    'player_skip': ['webpage', 'configs']
+                    'player_skip': ['configs']
                 }
             }
         }
-        cookie_file = os.path.join(BASE_DIR, 'cookies.txt')
-        if os.path.exists(cookie_file):
+        if has_cookies and 'android' not in clients:
             ydl_opts['cookiefile'] = cookie_file
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
