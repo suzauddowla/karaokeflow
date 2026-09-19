@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KaraokeFlow - Live YouTube Karaoke Studio with Pitch & Reverb</title>
+    
+    <!-- PWA & Mobile Meta -->
+    <meta name="theme-color" content="#0c0d14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="KaraokeFlow">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="assets/icon-192.png">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="logo-group">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#00F0FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+            <h1>KaraokeFlow</h1>
+        </div>
+        <div class="header-actions">
+            <button id="songbook-btn" class="btn-secondary" title="My Songbook">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                <span>Favorites</span>
+            </button>
+            <button id="server-settings-btn" class="btn-secondary" title="Server Connection Settings">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>Server</span>
+            </button>
+            <button id="share-mobile-btn" class="btn-secondary" title="Connect Phone via Wi-Fi">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                </svg>
+                <span>Phone</span>
+            </button>
+            <a href="/KaraokeFlow.apk" download="KaraokeFlow.apk" class="btn-primary" style="text-decoration: none;" title="Download Android APK">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M12 16l4-5h-3V4h-2v7H8l4 5zm9-4v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7h2v7h14v-7h2z"/>
+                </svg>
+                <span>APK</span>
+            </a>
+            <button id="install-app-btn" class="btn-primary hidden" title="Install as Mobile App">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Install</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="app-container">
+        
+        <!-- Video & Visualizer Stage Area -->
+        <section class="stage-section">
+            <div class="video-wrapper">
+                <div id="yt-player-container"></div>
+                <div id="autoplay-prompt" class="autoplay-overlay hidden">
+                    <button id="tap-to-play-btn" class="tap-to-play-btn">
+                        <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span>Tap to Start Audio</span>
+                    </button>
+                    <p style="font-size: 0.75rem; color: #bbb; margin-top: 8px;">(Autoplay restricted by mobile browser)</p>
+                </div>
+            </div>
+            <div class="visualizer-wrapper">
+                <canvas id="visualizer-canvas" width="800" height="34"></canvas>
+            </div>
+        </section>
+
+        <!-- Studio DSP Control Board -->
+        <section class="dsp-board">
+            <div class="dsp-header">
+                <span class="dsp-title">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="21" x2="4" y2="14"></line>
+                        <line x1="4" y1="10" x2="4" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12" y2="3"></line>
+                        <line x1="20" y1="21" x2="20" y2="16"></line>
+                        <line x1="20" y1="12" x2="20" y2="3"></line>
+                        <line x1="1" y1="14" x2="7" y2="14"></line>
+                        <line x1="9" y1="8" x2="15" y2="8"></line>
+                        <line x1="17" y1="16" x2="23" y2="16"></line>
+                    </svg>
+                    Studio DSP Console
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <select id="audio-source-select" class="btn-secondary" style="font-size: 0.78rem; padding: 6px 10px; border-radius: 8px; cursor: pointer;">
+                        <option value="dsp" selected>🎛️ Studio DSP (Pitch & Reverb)</option>
+                        <option value="direct">🔊 Direct YouTube Audio</option>
+                    </select>
+                    <button id="vocal-reducer-btn" class="btn-secondary" title="Cancel Center Panned Vocals on Original Tracks">
+                        <span>Vocal Reducer</span>
+                        <span id="vocal-reducer-badge" class="badge off">OFF</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="dsp-grid">
+                
+                <!-- 1. Pitch Shifter Card -->
+                <div class="control-card">
+                    <div class="control-card-header">
+                        <span class="control-label">PITCH / KEY CHANGER</span>
+                        <span id="pitch-value" class="control-badge neutral">Original (0)</span>
+                    </div>
+                    <div class="pitch-stepper">
+                        <button id="pitch-down-btn" class="step-btn" title="Lower Key by 1 Semitone">♭ -1</button>
+                        <button id="pitch-reset-btn" class="step-btn" title="Reset to Original Key">0 Key</button>
+                        <button id="pitch-up-btn" class="step-btn" title="Raise Key by 1 Semitone">♯ +1</button>
+                    </div>
+                    <div class="slider-group">
+                        <span>-6</span>
+                        <input type="range" id="pitch-slider" class="custom-range" min="-6" max="6" value="0" step="1">
+                        <span>+6</span>
+                    </div>
+                </div>
+
+                <!-- 2. Reverberation (Reverb) Card -->
+                <div class="control-card">
+                    <div class="control-card-header">
+                        <span class="control-label">REVERBERATION (KTV HALL)</span>
+                        <span id="reverb-mix-val" class="control-badge sharp">35%</span>
+                    </div>
+                    <div class="presets-group">
+                        <button class="reverb-preset-btn active" data-preset="ktv">KTV Room</button>
+                        <button class="reverb-preset-btn" data-preset="hall">Concert Hall</button>
+                        <button class="reverb-preset-btn" data-preset="stage">Stage Live</button>
+                        <button class="reverb-preset-btn" data-preset="arena">Arena</button>
+                        <button class="reverb-preset-btn" data-preset="off">Dry (Off)</button>
+                    </div>
+                    <div class="slider-group">
+                        <span>Mix</span>
+                        <input type="range" id="reverb-mix-slider" class="custom-range" min="0" max="100" value="35" step="1">
+                        <span>Wet</span>
+                    </div>
+                    <div class="slider-group" style="margin-top: 6px;">
+                        <span>Decay</span>
+                        <input type="range" id="reverb-decay-slider" class="custom-range" min="0.5" max="4.5" value="1.6" step="0.1">
+                        <span id="reverb-decay-val">1.6s</span>
+                    </div>
+                </div>
+
+                <!-- 3. Tempo / Speed Card -->
+                <div class="control-card">
+                    <div class="control-card-header">
+                        <span class="control-label">TEMPO / SPEED</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <span id="tempo-val" class="control-badge neutral">1.00x</span>
+                            <button id="tempo-reset-btn" class="icon-btn" style="width: 24px; height: 24px; font-size: 0.65rem;" title="Reset speed">1x</button>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <span>0.75x</span>
+                        <input type="range" id="tempo-slider" class="custom-range" min="0.75" max="1.25" value="1.0" step="0.05">
+                        <span>1.25x</span>
+                    </div>
+                </div>
+
+                <!-- 4. Live Vocal Mic Card -->
+                <div class="control-card">
+                    <div class="control-card-header">
+                        <span class="control-label">LIVE VOCAL MIC (HEADPHONES)</span>
+                        <span id="mic-status-badge" class="badge off">OFF</span>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <button id="mic-toggle-btn" class="btn-secondary" style="width: 100%; justify-content: center;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            </svg>
+                            <span>Toggle Sing-Along Mic</span>
+                        </button>
+                    </div>
+                    <div class="slider-group">
+                        <span>Mic Vol</span>
+                        <input type="range" id="mic-gain-slider" class="custom-range" min="0" max="2.0" value="1.0" step="0.05">
+                        <span id="mic-gain-val">100%</span>
+                    </div>
+                    <div class="slider-group" style="margin-top: 4px;">
+                        <span>Mic Reverb</span>
+                        <input type="range" id="mic-reverb-slider" class="custom-range" min="0" max="1.0" value="0.45" step="0.05">
+                        <span id="mic-reverb-val">45%</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Search & Karaoke Song Library -->
+        <section class="search-section">
+            <div class="search-bar-wrap">
+                <div class="search-input-box">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="search-input" placeholder="Search any song, artist or YouTube link..." autocomplete="off">
+                </div>
+                <button id="search-btn" class="btn-primary">Search</button>
+            </div>
+
+            <div class="search-filter-row">
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="karaoke-filter-toggle" checked>
+                    <span>Karaoke Instrumental Tracks Only</span>
+                </label>
+                <div>
+                    <input type="file" id="local-file-input" accept="audio/*" style="display: none;">
+                    <button id="local-file-btn" class="btn-secondary" style="font-size: 0.75rem; padding: 4px 8px;">
+                        📁 Sing Local Audio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Genre / Mood Chips -->
+            <div class="chips-container">
+                <button class="chip active" data-genre="trending">🔥 Trending</button>
+                <button class="chip" data-genre="pop">✨ Pop Hits</button>
+                <button class="chip" data-genre="rock">🎸 Classic Rock</button>
+                <button class="chip" data-genre="ballad">🎹 Ballads</button>
+                <button class="chip" data-genre="rnb">💃 R&B / Soul</button>
+                <button class="chip" data-genre="favorites">⭐ My Songbook</button>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="search-loading" class="loading-indicator hidden">
+                <div class="spinner"></div>
+                <span>Finding karaoke tracks...</span>
+            </div>
+
+            <!-- Results List -->
+            <div id="search-results" class="song-list"></div>
+        </section>
+
+        <!-- Global User Compliance & Privacy Notice -->
+        <footer style="text-align: center; padding: 20px 0; color: var(--text-muted); font-size: 0.75rem; border-top: 1px solid var(--border); margin-top: 30px;">
+            <p><strong>KaraokeFlow Live Studio</strong> &bull; Released on <a href="https://alsuza.com" target="_blank" style="color: var(--primary); text-decoration: none;">alsuza.com</a></p>
+            <p style="margin-top: 4px;">Privacy Protected: 100% of microphone and digital audio processing runs locally inside your device browser. No voice audio is ever recorded or uploaded.</p>
+            <p style="margin-top: 4px;"><a href="privacy.html" style="color: var(--text-muted); text-decoration: underline;">Privacy Policy &amp; Terms</a> &bull; Fair-Use Karaoke Player</p>
+        </footer>
+
+    </main>
+
+    <!-- Bottom Docked Player (Fixed) -->
+    <div id="player-dock" class="player-dock hidden">
+        <!-- Scrub Progress Bar -->
+        <div class="progress-container">
+            <input type="range" id="progress-bar" class="progress-bar-input" min="0" max="100" value="0" step="0.1">
+            <div class="progress-track">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="dock-content">
+            <div class="dock-track-info">
+                <img id="player-thumb" src="assets/icon-192.png" alt="Thumbnail" class="dock-thumb">
+                <div class="dock-text">
+                    <div id="player-title" class="dock-title">Ready to Sing</div>
+                    <div class="dock-meta-row">
+                        <span id="player-channel" class="dock-channel">Pick a track above</span>
+                        <span class="dock-sep">&bull;</span>
+                        <span class="dock-time"><span id="current-time">0:00</span> / <span id="total-time">0:00</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dock-controls">
+                <button id="fav-toggle-btn" class="icon-btn" title="Add to Favorites">
+                    <svg id="fav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                </button>
+                <button id="prev-btn" class="icon-btn" title="Previous / Restart">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                        <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"></line>
+                    </svg>
+                </button>
+                <button id="play-pause-btn" class="play-circle-btn" title="Play / Pause">
+                    <svg id="play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <svg id="pause-icon" class="hidden" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                </button>
+                <button id="next-btn" class="icon-btn" title="Next Song">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                        <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Phone Connect / Wi-Fi QR Code -->
+    <div id="mobile-connect-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>📱 Open on Your Mobile Phone</h3>
+            <p>Scan this QR code with your phone camera or type the URL below in your mobile browser (Brave, Chrome, or Safari) to install and sing!</p>
+            <div class="qr-box">
+                <img id="mobile-qr-img" src="" alt="QR Code">
+            </div>
+            <div id="mobile-url-box" class="url-box">http://localhost:5000</div>
+            <div class="modal-actions">
+                <button id="copy-url-btn" class="btn-secondary">Copy Link</button>
+                <button id="close-mobile-modal" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Microphone Headphone Advisory -->
+    <div id="mic-advisory-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>🎧 Headphone Recommended</h3>
+            <p>To sing with live microphone reverb and avoid acoustic screeching (audio feedback loops), please plug in wired earphones or low-latency headphones before enabling the live mic.</p>
+            <div class="modal-actions">
+                <button id="mic-confirm-btn" class="btn-primary">I Have Headphones &bull; Enable Mic</button>
+                <button id="mic-cancel-btn" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Server Settings -->
+    <div id="server-settings-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>⚙️ Server Connection Settings</h3>
+            <p>If you are using the installed Android APK, enter your PC's IP or your website address (e.g. <code>http://192.168.0.105:5000</code> or <code>https://alsuza.com</code>):</p>
+            <input type="text" id="server-url-input" class="search-input-box" style="width: 100%; margin-bottom: 14px; padding: 10px; color: #fff;" placeholder="http://192.168.0.105:5000">
+            <div class="modal-actions">
+                <button id="auto-detect-server-btn" class="btn-secondary" style="margin-right: 8px;">⚡ Auto Detect</button>
+                <button id="save-server-btn" class="btn-primary">Save &bull; Reconnect</button>
+                <button id="close-server-modal" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/audio-engine.js"></script>
+    <script src="js/yt-sync.js"></script>
+    <script src="js/app.js"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => {
+                    console.log('SW registration note:', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

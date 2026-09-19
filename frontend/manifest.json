@@ -1,0 +1,25 @@
+{
+  "name": "KaraokeFlow Live Studio",
+  "short_name": "KaraokeFlow",
+  "description": "Sing YouTube karaoke live with real-time pitch shifting, reverberation, and tempo controls.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0d14",
+  "theme_color": "#0c0d14",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"]
+}
